@@ -1,0 +1,16 @@
+{
+  "name": "ecommerce-backend",
+  "version": "1.0.0",
+  "description": "Scalable E-commerce backend API built with Node.js, Express, and MongoDB.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ecommerce",
+    "javascript",
+    "backend"
+  ],
+  "author": "Satnam Singh",
+  "license": "ISC"
+}
