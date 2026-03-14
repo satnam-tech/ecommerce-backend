@@ -20,7 +20,16 @@ const userSchema = new Schema(
     role: {
       type: String,
       enum: ["CUSTOMER", "SUPERADMIN", "ADMIN"],
-      default: "customer",
+      default: "CUSTOMER",
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    lastOtpSent: {
+      type: Date,
     },
 
     password: {
@@ -37,11 +46,11 @@ const userSchema = new Schema(
   }
 );
 
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
-  this.password = bcrypt.hash(this.password, 10);
-  next();
+  this.password = await bcrypt.hash(this.password, 10);
+  // next();
 });
 
 userSchema.methods.isPasswordCorrect = async function (password) {
@@ -49,7 +58,7 @@ userSchema.methods.isPasswordCorrect = async function (password) {
 };
 
 userSchema.methods.generateAccessToken = function () {
-  jwt.sign(
+  return jwt.sign(
     {
       _id: this._id,
       email: this.email,
@@ -57,19 +66,19 @@ userSchema.methods.generateAccessToken = function () {
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
-      expiryIn: process.env.ACCESS_TOKEN_EXPIRY,
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
     }
   );
 };
 
 userSchema.methods.generateRefreshToken = function () {
-  jwt.sign(
+  return jwt.sign(
     {
       _id: this._id,
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
-      expiryIn: process.env.REFRESH_TOKEN_EXPIRY,
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
   );
 };
