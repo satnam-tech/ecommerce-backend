@@ -6,11 +6,13 @@ const productSchema = new Schema(
     name: {
       type: String,
       required: [true, "Product name is required!"],
+      index: true,
     },
 
     description: {
       type: String,
       required: [true, "Product description is required!"],
+      index: true,
     },
 
     price: {
@@ -35,9 +37,14 @@ const productSchema = new Schema(
       required: [true, "Product category is required"],
     },
 
-    status: {
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    brand: {
       type: String,
-      enum: ["ACTIVE", "INACTIVE", "OUT OF STOCK"],
+      required: [true, "Product brand is required"],
     },
 
     mainImage: {

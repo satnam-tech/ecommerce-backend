@@ -22,6 +22,8 @@ export const checkAdmin = asyncHandler(async (req, res, next) => {
     if (user.role !== "ADMIN")
       throw new ApiError(403, "Forbidden (admin access required)");
 
+    req.user = user;
+
     next();
   } catch (error) {
     throw new ApiError(401, error?.message || "Invalid access token");

@@ -234,7 +234,7 @@ const addUserAddress = asyncHandler(async (req, res) => {
   // Later validate data using joe or express validator
 
   if (
-    [fullName, phone, addressLine1, city, state, pincode, country].some(
+    ![fullName, phone, addressLine1, city, state, pincode, country].some(
       (field) => field?.trim() === ""
     )
   )
@@ -244,8 +244,6 @@ const addUserAddress = asyncHandler(async (req, res) => {
     ...req.body.address,
     owner: req?.user._id,
   });
-
-  await address.save({ validateBeforeSave: false });
 
   return res
     .status(201)
@@ -257,6 +255,9 @@ const updateUserAddress = asyncHandler(async (req, res) => {
 
   if (!addressId) throw new ApiError(400, "Address id is required");
 
+  if(!req.body.address)
+    throw new ApiError(400, "Address data is required")
+  
   const {
     fullName,
     phone,

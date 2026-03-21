@@ -8,13 +8,13 @@ const userSchema = new Schema(
       type: String,
       trim: true,
       required: [true, "Fullname is required"],
-      index: true,
     },
 
     phone: {
       type: Number,
       unique: true,
       required: [true, "Phone number is required"],
+      index: true,
     },
 
     role: {
