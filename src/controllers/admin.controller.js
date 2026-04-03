@@ -148,6 +148,16 @@ const createProduct = asyncHandler(async (req, res) => {
     throw new ApiError(400, "fields cannot be empty");
   }
 
+  // need to test
+  const existingProduct = await Product.findOne({
+    name,
+    description,
+  });
+
+  if (existingProduct) {
+    throw new ApiError(409, "Product already exists");
+  }
+
   console.log(req.files);
 
   let mainImageLocalPath;

@@ -65,7 +65,7 @@ const getAllProducts = asyncHandler(async (req, res) => {
       sortOption.createdAt = -1;
   }
 
-  // Sorting
+  // Sorting  
   if (sort) {
     query = query.sort(sortOption);
   }

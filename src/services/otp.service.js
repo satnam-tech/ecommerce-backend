@@ -110,6 +110,7 @@ export const canResendOtp = async (mobile) => {
   return result;
 };
 
+
 /*
 now = current time
 lastSent = user.lastOtpSentAt

@@ -67,6 +67,8 @@ const productSchema = new Schema(
   }
 );
 
+productSchema.index({ name: 1, description: 1 }, { unique: true }); // Prevents Duplicate Products
+
 productSchema.plugin(mongooseAggregatePaginate);
 
 export const Product = mongoose.model("Product", productSchema);
