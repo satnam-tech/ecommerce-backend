@@ -1,25 +1,30 @@
 import { isValidObjectId } from "mongoose";
-import { Cart } from "../models/cart.model.js";
-import { Product } from "../models/product.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
+import {
+  AddProductToCartOrUpdateQuantity,
+  getAUserCart,
+  getAProductById,
+  removeProductFromCart,
+  calculateCartTotals,
+} from "../services/product.service.js";
 
 const getUserCart = asyncHandler(async (req, res) => {
-  const userCart = await Cart.find({ owner: req?.user._id }).populate({
+  const { cart } = await getAUserCart(req?.user._id, {
     path: "cartItems.product",
     select: "name description price mainImage",
   });
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        userCart,
-      },
-      "Cart fetched successfully"
-    )
-  );
+  console.log("cart:", cart);
+
+  const isCartEmpty = !cart || cart.cartItems.length === 0;
+
+  return res.status(200).json({
+    success: true,
+    userCart: isCartEmpty ? null : cart,
+    message: isCartEmpty ? "Cart is empty" : "Cart fetched successfully",
+  });
 });
 
 // Not Tested: Check that product is avalable or not (Check stock before add item to cart)
@@ -30,76 +35,35 @@ const addItemToCart = asyncHandler(async (req, res) => {
   if (!isValidObjectId(productId))
     throw new ApiError(400, "Invalid product id");
 
-  const product = await Product.findById(productId);
+  // console.log(productId);
 
-  if (!product) throw new ApiError(400, "Invalid product id");
+  const product = await getAProductById(productId);
+
   if (!quantity) throw new ApiError(400, "Product quantity is required");
 
-  const cart = await Cart.findOne({ owner: req?.user._id });
-
-  console.log(cart);
-
-  if(product.stock < 1)
-    throw new ApiError(400, "Product is out of stock OR 1")
-
-  if(!(product.stock >= quantity))
-    throw new ApiError(400, `Product stock is not availale, ${product.stock}`)
-
-
-  let newItem = {
-    product: productId,
-    quantity: quantity,
-  };
-
-  let message;
-
-  if (!cart) {
-    let newCart = await Cart.create({
-      owner: req?.user._id,
-      cartTotal: quantity * product?.price,
-      cartItems: [newItem],
-    });
-
-    message = "Item added successfully";
-  } else {
-    let cartItems = cart.cartItems || [];
-
-    let existingItem = cartItems.find((item) => {
-      return item.product.equals(productId);
-    });
-
-    if (existingItem) {
-      existingItem.quantity = quantity;
-      message = "Updated item quantity successfully";
-    } else {
-      cartItems.push(newItem);
-      message = "Item added successfully";
-    }
-  }
-
-  if (cart !== null) {
-    const cartItems = cart.cartItems;
-    let total = 0;
-
-    for (const item of cartItems) {
-      const productPrice = await Product.findById(item.product).select("price");
-      total += item.quantity * productPrice.price;
-    }
-
-    cart.cartTotal = total;
-    await cart.save();
-  }
-
-  const populatedCart = await Cart.findOne({ owner: req?.user._id }).populate({
+  const cart = await getAUserCart(req?.user._id, {
     path: "cartItems.product",
     select: "name description price mainImage",
   });
+
+  if (product.stock < 1) throw new ApiError(400, "Product is out of stock");
+
+  if (product.stock < quantity)
+    throw new ApiError(400, `Product stock is not available ${product.stock}`);
+
+  const { userCart, message } = await AddProductToCartOrUpdateQuantity(
+    req?.user._id,
+    product,
+    cart.cart,
+    productId,
+    quantity
+  );
 
   res.status(201).json(
     new ApiResponse(
       201,
       {
-        cart: populatedCart,
+        cart: userCart,
       },
       message
     )
@@ -112,57 +76,46 @@ const RemoveItemFromCart = asyncHandler(async (req, res) => {
   if (!isValidObjectId(productId))
     throw new ApiError(400, "Inavalid product id");
 
-  const product = await Product.findById(productId);
-  console.log(product);
+  const product = await getAProductById(productId);
 
   if (!product) throw new ApiError(400, "Invalid product Id");
 
-  const cart = await Cart.findOne({ owner: req?.user._id });
-
-  if (!cart) throw new ApiError(404, "Cart not found");
-
-  const cartItems = cart.cartItems;
-
-  const index = cartItems.findIndex((item) => item.product.equals(productId));
-
-  if (index !== -1) {
-    cartItems.splice(index, 1);
-  } else {
-    throw new ApiError(404, "Product not found in cart");
-  }
-  
-  let total = 0;
-  for (const item of cartItems) {
-    const productPrice = await Product.findById(item.product).select("price");
-    total += item.quantity * productPrice.price;
-  }
-
-  cart.cartTotal = total;
-  await cart.save();
-
-  const remaininigCartItem = await Cart.findOne({
-    owner: req?.user._id,
-  }).populate({
+  const cart = await getAUserCart(req?.user._id, {
     path: "cartItems.product",
     select: "name description price mainImage",
   });
+
+  if (!cart) throw new ApiError(404, "Cart not found");
+
+  const remainingCartItems = await removeProductFromCart(
+    cart.cart,
+    productId,
+    req?.user._id
+  );
 
   res.status(200).json(
     new ApiResponse(
       200,
       {
-        remaininigCartItem,
+        remainingCartItems,
       },
       "Item removed successfully"
     )
   );
 });
 
-// Question: If user don't add to cart product instead they click buy now btn, When What Happened from backend
+// Question: If user don't add to cart product instead they click buy now btn, When What Happened from backend : DONE 04-05-2026, 8:11 PM YET NOT TESTED
 
-// And how to handle , if user adds some products in past to the cart, Suppose now in that products, have any one product don't have any stock 0, THEN existing added items to cart, HOW TO SHOW THROW ERROR OR MESSAGE, THAT PRODUCT DON'T HAVE ANY stock
+// Question: How to show delivery date in cart, when user add item to cart, and how to calculate delivery date : DONE 04-05-2026, 9:21 PM YET NOT TESTED
 
-// IMPLEMENT LATER: discountedTotal, tax, shipping, delivery charges, & Stored in CART MODEL
+// And how to handle , if user adds some products in past to the cart, Suppose now in that products, have any one product don't have any stock 0, THEN existing added items to cart, HOW TO SHOW THROW ERROR OR MESSAGE, THAT PRODUCT DON'T HAVE ANY stock : DONE 05-05-2026, 12:33 PM YET NOT TESTED
 
+// IMPLEMENT LATER: discountedTotal, tax, shipping, delivery charges, & Stored in CART MODEL AND Implement coupons, discounts : DONE 10-05-2026, 5:53 PM YET NOT TESTED
+
+// IMPLEMENT LATER: Decrease the stock when user place order, and increase the stock when user cancel order: DONE 10-05-2026, 6:13 PM YET NOT TESTED
+
+// IMPLEMENT LATER: Invoice generation when user place order, and send invoice to user email (⚙️ How Invoice is Generated: learning.txt file): DONE 10-05-2026, 6:26 PM YET NOT TESTED
+
+// Left Testing: 1. Cart apis & charges, 2. Stock decrease, 3. Invoice generation and download invoice, 4. Coupon Apis
 
 export { getUserCart, addItemToCart, RemoveItemFromCart };

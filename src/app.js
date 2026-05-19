@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { authenticationMiddleware } from "./middlewares/auth.middleware.js";
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use(cookieParser());
+app.use(authenticationMiddleware);
 
 //routes import
 import authRouter from "./routes/auth.routes.js";
@@ -24,6 +26,7 @@ import adminRouter from "./routes/admin.routes.js";
 import cartRouter from "./routes/cart.routes.js";
 import orderRouter from "./routes/order.routes.js";
 import paymentRouter from "./routes/payment.routes.js";
+import couponRouter from "./routes/coupon.routes.js";
 import { ApiError } from "./utils/ApiError.js";
 
 //routes declaration
@@ -34,6 +37,7 @@ app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/cart", cartRouter);
 app.use("/api/v1/orders", orderRouter);
 app.use("/api/v1/payment", paymentRouter);
+app.use("/api/v1/coupons", couponRouter);
 
 // const users = [
 //   {
@@ -129,11 +133,14 @@ app.use("/api/v1/payment", paymentRouter);
 app.use((err, req, res, next) => {
   console.log(err);
 
-  if(err.name === "MulterError" && err.code === "LIMIT_UNEXPECTED_FILE")
-    throw new ApiError(400, "Unexpected file field. Please upload only allowed files.")
+  if (err.name === "MulterError" && err.code === "LIMIT_UNEXPECTED_FILE")
+    throw new ApiError(
+      400,
+      "Unexpected file field. Please upload only allowed files."
+    );
 
-  next(err)
-})
+  next(err);
+});
 
 app.use((err, req, res, next) => {
   console.error("ERROR: ", err);

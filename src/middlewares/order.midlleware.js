@@ -1,14 +1,14 @@
 import { isValidObjectId } from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { Order } from "../models/order.model.js";
+import { findAOrder } from "../services/order.service.js";
 
 export const isOwner = asyncHandler(async (req, res, next) => {
   const { orderId } = req.params;
 
   if (!isValidObjectId(orderId)) throw new ApiError(400, "Invalid order id");
 
-  const order = await Order.findOne({ _id: orderId });
+  const order = await findAOrder(orderId);
 
   if (!order) throw new ApiError(404, "Order not found (order middleware)");
 

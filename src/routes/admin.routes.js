@@ -6,22 +6,41 @@ import {
   createProduct,
   deleteCategory,
   deleteProduct,
-  deleteSubImage,
+  removeASubImage,
   getAllCategories,
+  getOrdersById,
+  getOrdersList,
   logoutAdmin,
   updateCategory,
   updateMainImage,
+  updateOrderStatus,
   updateProduct,
+  dashboardStats,
 } from "../controllers/admin.controller.js";
-import { checkAdmin } from "../middlewares/admin.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
+import {
+  ensureAuthenticated,
+  restrictToRole,
+} from "../middlewares/auth.middleware.js";
+import {
+  validateCreateProduct,
+  validateUpdateCategory,
+  validateUpdateProduct,
+} from "../middlewares/validation.middleware.js";
+
 const router = Router();
 
-router.route("/login").post(adminLogin);
-router.route("/logout").post(checkAdmin, logoutAdmin);
+const adminRestrictMiddleware = restrictToRole("ADMIN");
 
+router.route("/login").post(adminLogin);
+router
+  .route("/logout")
+  .post(ensureAuthenticated, adminRestrictMiddleware, logoutAdmin);
+
+// Product routes
 router.route("/products").post(
-  checkAdmin,
+  ensureAuthenticated,
+  adminRestrictMiddleware,
   upload.fields([
     {
       name: "mainImage",
@@ -33,15 +52,26 @@ router.route("/products").post(
     },
   ]),
 
+  validateCreateProduct,
   createProduct
 );
-router.route("/products/:productId").patch(checkAdmin, updateProduct);
-router.route("/products/:productId").delete(checkAdmin, deleteProduct);
+router
+  .route("/products/:productId")
+  .patch(
+    ensureAuthenticated,
+    adminRestrictMiddleware,
+    validateUpdateProduct,
+    updateProduct
+  );
+router
+  .route("/products/:productId")
+  .delete(ensureAuthenticated, adminRestrictMiddleware, deleteProduct);
 
 router
   .route("/products/:productId/main-image")
   .patch(
-    checkAdmin,
+    ensureAuthenticated,
+    adminRestrictMiddleware,
     upload.fields([{ name: "mainImage", maxCount: 1 }]),
     updateMainImage
   );
@@ -49,19 +79,42 @@ router
 router
   .route("/products/:productId/sub-images")
   .patch(
-    checkAdmin,
+    ensureAuthenticated,
+    adminRestrictMiddleware,
     upload.fields([{ name: "subImages", maxCount: 4 }]),
     addNewSubImage
   );
 
 router
   .route("/products/:productId/sub-images")
-  .delete(checkAdmin, deleteSubImage);
+  .delete(ensureAuthenticated, adminRestrictMiddleware, removeASubImage);
 
 // Category routes
-router.route("/category").post(checkAdmin, createCategory);
-router.route("/category").get(checkAdmin, getAllCategories);
-router.route("/category/:categoryId").patch(checkAdmin, updateCategory);
-router.route("/category/:categoryId").delete(checkAdmin, deleteCategory);
+router
+  .route("/category")
+  .post(ensureAuthenticated, adminRestrictMiddleware, createCategory);
+router
+  .route("/category")
+  .get(ensureAuthenticated, adminRestrictMiddleware, getAllCategories);
+router
+  .route("/category/:categoryId")
+  .patch(ensureAuthenticated, adminRestrictMiddleware, validateUpdateCategory, updateCategory);
+router
+  .route("/category/:categoryId")
+  .delete(ensureAuthenticated, adminRestrictMiddleware, deleteCategory);
+
+// Order routes
+router
+  .route("/orders")
+  .get(ensureAuthenticated, adminRestrictMiddleware, getOrdersList);
+router
+  .route("/orders/:orderId")
+  .get(ensureAuthenticated, adminRestrictMiddleware, getOrdersById);
+router
+  .route("/orders/:orderId/status")
+  .patch(ensureAuthenticated, adminRestrictMiddleware, updateOrderStatus);
+router
+  .route("/admin/dashboard/stats")
+  .patch(ensureAuthenticated, adminRestrictMiddleware, dashboardStats);
 
 export default router;

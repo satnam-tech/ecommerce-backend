@@ -1,94 +1,128 @@
 import mongoose, { Schema } from "mongoose";
 
-const orderItemSchema = new Schema({
-  product: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Product",
-  },
+const orderItemSchema = new Schema(
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+    },
 
-  quantity: {
-    type: Number,
-    required: [true, "Order item quantity is required"],
-  },
+    quantity: {
+      type: Number,
+      required: [true, "Order item quantity is required"],
+    },
 
-  priceAtPurchase: {
-    type: Number,
-    // required: [true, "Order item priceAtPurchase is required"],
+    priceAtPurchase: {
+      type: Number,
+      // required: [true, "Order item priceAtPurchase is required"],
+    },
   },
-}, {_id: false});
+  { _id: false }
+);
 
-const orderSchema = new Schema({
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-  },
+const orderSchema = new Schema(
+  {
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
 
-  orderPrice: {
-    type: Number,
-    required: [true, "Order price is required"],
-  },
+    orderPrice: {
+      type: Number,
+      required: [true, "Order price is required"],
+    },
 
-  orderItems: {
-    type: [orderItemSchema],
-    required: [true, "Order items is required"],
-  },
+    orderItems: {
+      type: [orderItemSchema],
+      required: [true, "Order items is required"],
+    },
 
-  address: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Address",
-    // required: [true, "Order address is required"],
-    default: null
-  },
+    address: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Address",
+      // required: [true, "Order address is required"],
+      default: null,
+    },
 
-  addressSnapshot: {
+    addressSnapshot: {
       fullName: { type: String },
-      phone: { type: Number},
-      addressLine1: { type: String},
+      phone: { type: Number },
+      addressLine1: { type: String },
+      addressLine2: { type: String },
       city: { type: String },
-      state: { type: String},
-      pincode: { type: String},
-    // required: [true, "Order address snapshot is required"],
+      country: { type: String },
+      state: { type: String },
+      pincode: { type: String },
+      // required: [true, "Order address snapshot is required"],
 
-    default: {},
-  },
+      default: {},
+    },
 
-  orderStatus: {
-    type: String,
-    enum: [
-      "DRAFT",
-      "PENDING_PAYMENT",
-      "CONFIRMED",
-      "PROCESSING",
-      "SHIPPED",
-      "OUT_FOR_DELIVERY",
-      "DELIVERED",
-      "CANCELLED",
-    ],
+    subTotal: {
+      type: Number,
+      default: 0,
+    },
 
-    required: [true, "Order status is required"],
-  },
-  
-  paymentMethod: {
-    type: String,
-    enum: ["COD", "ONLINE"],
-  },
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
 
-  paymentStatus: {
-    type: String,
-    enum: ["PENDING", "PAID", "FAILED"],
-  },
+    discountedTotal: {
+      type: Number,
+      default: 0,
+    },
 
-  paymentProvider: {
-    type: String,
-  },
+    taxAmount: {
+      type: Number,
+      default: 0,
+    },
 
-  gatewayOrderId: {
-    type: String,
-  },
+    shippingCharges: {
+      type: Number,
+      default: 0,
+    },
 
-  gatewayKey: {
-    type: String,
+    deliveryCharges: {
+      type: Number,
+      default: 0,
+    },
+
+    orderStatus: {
+      type: String,
+      enum: [
+        "DRAFT",
+        "PENDING_PAYMENT",
+        "CONFIRMED",
+        "PROCESSING",
+        "SHIPPED",
+        "OUT_FOR_DELIVERY",
+        "DELIVERED",
+        "CANCELLED",
+      ],
+
+      required: [true, "Order status is required"],
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["COD", "ONLINE"],
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["PENDING", "PAID", "FAILED"],
+    },
+
+    paymentProvider: {
+      type: String,
+    },
+
+    gatewayOrderId: {
+      type: String,
+    },
   },
-});
+  { timestamps: true }
+);
 
 export const Order = mongoose.model("Order", orderSchema);

@@ -25,13 +25,50 @@ const cartSchema = new Schema(
       ref: "User",
     },
 
-    cartTotal: {
+    subTotal: {
       type: Number,
     },
 
     cartItems: {
       type: [cartItemSchema],
       required: [true, "cartItem is required"],
+    },
+
+    discountAmount: {
+      type: Number,
+    },
+
+    discountedTotal: {
+      type: Number,
+    },
+
+    taxAmount: {
+      type: Number,
+      default: 0,
+    },
+
+    shippingCharges: {
+      type: Number,
+      default: 0,
+    },
+
+    deliveryCharges: {
+      type: Number,
+      default: 0,
+    },
+
+    finalTotal: {
+      type: Number,
+    },
+
+    coupon: {
+      type: String,
+    },
+
+    appliedCoupon: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Coupon",
+      default: null,
     },
   },
   { timestamps: true }

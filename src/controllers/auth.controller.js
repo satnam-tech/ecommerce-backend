@@ -1,35 +1,17 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { User } from "../models/user.model.js";
-import jwt from "jsonwebtoken";
 import {
-  sendOtp,
-  verifyOtp,
-  canResendOtp,
-} from "../services/otp.service.js";
-
-const generateAccessAndRefreshTokens = async (userId) => {
-  try {
-    const user = await User.findById(userId);
-
-    if (!user) throw new ApiError(404, "User not found");
-
-    const accessToken = user.generateAccessToken();
-    const refreshToken = user.generateRefreshToken();
-
-    user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });
-
-    return { accessToken, refreshToken };
-  } catch (error) {
-    console.log("ERROR WHILE GENERATING TOKENS: ", error);
-    throw new ApiError(
-      500,
-      "Something went wrong while generating referesh and access token"
-    );
-  }
-};
+  getUserByPhone,
+  createUser,
+  getUserById,
+  logoutAUser,
+} from "../services/user.service.js";
+import { sendOtp, verifyOtp, canResendOtp } from "../services/otp.service.js";
+import {
+  generateAccessAndRefreshTokens,
+  validateUserToken,
+} from "../utils/token.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   /* 
@@ -44,13 +26,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const { fullName, phone, password } = req.body;
 
-  console.log(phone, password);
-
-  if ([fullName, phone, password].some((field) => field?.trim() === "")) {
-    throw new ApiError(400, "All fields are required");
-  }
-
-  const existedUser = await User.findOne({ phone });
+  const existedUser = await getUserByPhone(phone);
 
   if (existedUser) {
     throw new ApiError(409, "User already exists");
@@ -61,22 +37,14 @@ const registerUser = asyncHandler(async (req, res) => {
   if (result?.status !== "pending")
     throw new ApiError(500, "Otp sending failed");
 
-  const now = new Date();
-
-  const user = await User.create({
+  const createdUser = await createUser({
     fullName,
     phone,
     password,
-    lastOtpSent: now,
+    lastOtpSent: new Date(),
   });
 
-  console.log("USER: ", user);
-
-  const createdUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
-
-  console.log("CREATED USE: ", createdUser);
+  console.log("USER: ", createdUser);
 
   if (!createdUser) {
     throw new ApiError(500, "Something went wrong while registering the user");
@@ -100,7 +68,7 @@ const verifyUserOtp = asyncHandler(async (req, res) => {
     throw new ApiError(400, "phone and otp are required");
   }
 
-  const user = await User.findOne({ phone });
+  const user = await getUserByPhone(phone);
 
   if (!user) {
     throw new ApiError(404, "User not found");
@@ -119,9 +87,7 @@ const verifyUserOtp = asyncHandler(async (req, res) => {
     user._id
   );
 
-  const verifiedUser = await User.findById(user._id).select(
-    "-password -accessToken -refreshToken"
-  );
+  const verifiedUser = await getUserById(user._id);
 
   const options = {
     httpOnly: true,
@@ -176,7 +142,7 @@ const loginUser = asyncHandler(async (req, res) => {
   if (!phone && !password)
     throw new ApiError(400, "phone and password are required");
 
-  const user = await User.findOne({ phone });
+  const user = await getUserByPhone(phone);
 
   if (!user) throw new ApiError(404, "User does not exists");
 
@@ -194,9 +160,7 @@ const loginUser = asyncHandler(async (req, res) => {
     user._id
   );
 
-  const loggedInUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
+  const loggedInUser = await getUserById(user._id, "-password");
 
   const options = {
     httpOnly: true,
@@ -229,7 +193,7 @@ const loginWithOtp = asyncHandler(async (req, res) => {
 
   const { phone } = req.body;
 
-  const user = await User.findOne({ phone });
+  const user = await getUserByPhone(phone);
 
   if (!user) throw new ApiError(404, "User does not exists");
 
@@ -253,7 +217,7 @@ const verifyLoginOtp = asyncHandler(async (req, res) => {
 
   if (!phone && !code) throw new ApiError(400, "Phone and code are required");
 
-  const user = await User.findOne({ phone }).select("-password -refreshToken");
+  const user = await getUserByPhone(phone);
 
   if (!user) throw new ApiError(404, "User does not exists");
 
@@ -267,9 +231,7 @@ const verifyLoginOtp = asyncHandler(async (req, res) => {
     user._id
   );
 
-  const loggedInUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
+  const loggedInUser = await getUserById(user._id);
 
   const options = {
     httpOnly: true,
@@ -294,19 +256,7 @@ const verifyLoginOtp = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  const logoutUser = await User.findByIdAndUpdate(
-    req.user._id,
-
-    {
-      $unset: {
-        refreshToken: 1, // removes the field from document
-      },
-    },
-
-    {
-      returnDocument: "after",
-    }
-  );
+  const logoutUser = await logoutAUser(req?.user._id);
 
   const options = {
     httpOnly: true,
@@ -325,14 +275,14 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     req.cookies.refreshToken || req.body.refreshToken;
 
   if (!incomingRefreshToken) throw new ApiError(401, "unauthorized request");
-
+  
   try {
-    const decodedToken = jwt.verify(
+    const decodedToken = await validateUserToken(
       incomingRefreshToken,
-      process.env.REFRESH_TOKEN_SECRET
+      "RefreshToken"
     );
 
-    const user = await User.findById(decodedToken?._id);
+    const user = await getUserById(decodedToken?._id);
 
     if (!user) throw new ApiError(401, "Invalid refresh token");
 
@@ -344,7 +294,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       secure: true,
     };
 
-    const { accessToken, newRefreshToken } =
+    const { accessToken, refreshToken: newRefreshToken } =
       await generateAccessAndRefreshTokens(user._id);
 
     return res
@@ -359,6 +309,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    console.log("ERROR: ", error);
     throw new ApiError(401, error?.message || "Invalid refresh token");
   }
 });

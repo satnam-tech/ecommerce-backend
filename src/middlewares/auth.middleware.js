@@ -1,28 +1,44 @@
-import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import jwt from "jsonwebtoken";
+import { validateUserToken } from "../utils/token.js";
 
-export const verifyJWT = asyncHandler(async (req, res, next) => {
+export const authenticationMiddleware = asyncHandler(async (req, res, next) => {
   try {
     const token =
       req.cookies?.accessToken ||
       req.header("Authorization")?.replace("Bearer ", "");
 
-    if (!token) throw new ApiError(401, "Unauthorized request");
+    const authHeader = req.header("Authorization");
+    
+    if (!token) return next();
 
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    if (authHeader && !authHeader.startsWith("Bearer"))
+      throw new ApiError(400, "Authorization header must start with Bearer");
 
-    const user = await User.findById(decodedToken?._id).select(
-      "fullName phone role createdAt"
-    );
+    const payload = validateUserToken(token);
 
-    if (!user) throw new ApiError(401, "Invalid Access Token");
-
-    req.user = user;
+    req.user = payload;
 
     next();
   } catch (error) {
     throw new ApiError(401, error?.message || "Unauthorized request");
   }
 });
+
+export const ensureAuthenticated = (req, res, next) => {
+  if (!req.user && !req.user?._id) {
+    throw new ApiError(401, "You must be logged in to access this resource");
+  }
+
+  next();
+};
+
+export const restrictToRole = function (role) {
+  return function (req, res, next) {
+    if (req.user.role !== role) {
+      throw new ApiError(401, "You are not authorized to access this resource");
+    }
+
+    next();
+  };
+};

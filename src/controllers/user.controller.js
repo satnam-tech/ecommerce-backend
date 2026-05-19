@@ -1,9 +1,20 @@
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { User } from "../models/user.model.js";
-import { Address } from "../models/address.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { sendOtp, verifyOtp } from "../services/otp.service.js";
+import { getUserById, updateUserById } from "../services/user.service.js";
+import { isValidObjectId } from "mongoose";
+import {
+  getAllUserOrders,
+  getTotalOrdersCount,
+} from "../services/order.service.js";
+import {
+  CreateAddress,
+  deleteAddressById,
+  getAllAddresses,
+  getTotalAddressesCount,
+  updateAddressById,
+} from "../services/address.service.js";
 
 const currentUser = asyncHandler(async (req, res) => {
   return res
@@ -11,7 +22,7 @@ const currentUser = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        { userProfile: req?.user },
+        { userProfile: req.user },
         "Current user fetched successfully"
       )
     );
@@ -21,10 +32,12 @@ const updateUserRole = asyncHandler(async (req, res) => {
   const { role } = req.body;
   const { id } = req.params;
 
+  if (!isValidObjectId(id)) throw new ApiError(400, "Invalid user id");
+
   if (!role && role !== "admin")
     throw new ApiError(400, "Invalid role or role is required");
 
-  const user = await User.findById(id);
+  const user = await getUserById(id);
 
   if (!user) throw new ApiError(404, "User does not exists");
 
@@ -48,15 +61,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 
   if (!fullName) throw new ApiError(400, "fullName is required");
 
-  const user = await User.findByIdAndUpdate(
-    req?.user._id,
-    {
-      $set: {
-        fullName,
-      },
-    },
-    { returnDocument: "after" }
-  ).select("-password");
+  const user = await updateUserById(req?.user._id, { fullName });
 
   return res
     .status(200)
@@ -66,8 +71,6 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 const updateUserPhone = asyncHandler(async (req, res) => {
   const { newPhone } = req.body;
 
-  // Validate number is correct, valid format or not (Later: joi or express validator)
-
   if (!newPhone) throw new ApiError(400, "phone number is required");
 
   const result = await sendOtp(newPhone);
@@ -75,11 +78,7 @@ const updateUserPhone = asyncHandler(async (req, res) => {
   if (result?.status !== "pending")
     throw new ApiError(500, "Otp sending failed");
 
-  await User.findByIdAndUpdate(req?.user._id, {
-    $set: {
-      lastOtpSent: new Date(),
-    },
-  });
+  await updateUserById(req?.user._id, { lastOtpSent: new Date() });
 
   return res
     .status(200)
@@ -98,59 +97,29 @@ const updatePhoneVerify = asyncHandler(async (req, res) => {
 
   if (verify?.status !== "approved") throw new ApiError(400, "Invalid OPT");
 
-  const user = await User.findByIdAndUpdate(
-    req?.user._id,
-    {
-      $set: {
-        phone: newPhone,
-      },
-    },
-    { returnDocument: "after" }
-  ).select("-password");
+  const user = await updateUserById(req?.user._id, { phone: newPhone });
 
   return res
     .status(200)
     .json(new ApiResponse(200, user, "User Phone updated successfully"));
 });
 
-// Later test when we writing Order creation controller
+// Later test when we writing Order creation controller: DONE tested: 05-04-2026
 const getUserOrders = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
 
-  const orders = await Order.find({ owner: req?.user._id })
-    .skip((page - 1) * limit)
-    .limit(limit)
-    .populate("addressId", "-fullAddress") // 2nd parameter: hide sensitive fields, Use minus - inpopulate.
-    .populate("owner", "fullName phone") // 2nd parameter: we want only some user fields
-    .skip((page - 1) * limit)
-    .limit(limit);
+  const orders = await getAllUserOrders(req?.user._id, page, limit);
 
   if (!orders) throw new ApiError(404, "No orders found with the provided ID.");
 
-  // adding totalorderitems in order document
-  const finalOrder = await Promise.all(
-    orders.map(async (order) => {
-      const totalOrderItems = await OrderItem.countDocuments({
-        order: order._id,
-      });
-
-      return {
-        ...order.toObject(),
-        totalOrderItems,
-      };
-    })
-  );
-
-  const totalOrders = await Order.countDocuments({
-    owner: req?.user._id,
-  });
+  const totalOrders = await getTotalOrdersCount(req?.user._id);
 
   const totalPages = Math.ceil(totalOrders / limit);
 
   return res.status(200).json(
     new ApiResponse(200, {
-      orders: finalOrder,
+      orders,
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1,
       page,
@@ -160,7 +129,7 @@ const getUserOrders = asyncHandler(async (req, res) => {
     })
   );
 
-  /* Later we using Mongo Aggregation pipeline beacuse its more efficient and execute in one pipeline Not in multiple queries like populate chain:
+  /* Later we using Mongo Aggregation pipeline beacuse its more efficient and execute in one pipeline Not in multiple queries like populate chain: DONE LEAR MONGO AGGREGATION PIPELINE: 10-04-2026 & IMPLEMENTD 26-04-2026
   {
   "data": {
     "page": 1,
@@ -195,18 +164,11 @@ const getUserAddresses = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
 
-  const addresses = await Address.find({ owner: req?.user._id })
-    .skip((page - 1) * limit)
-    .limit(limit);
+  const addresses = await getAllAddresses(req?.user._id, page, limit);
 
   console.log(addresses);
 
-  if (!addresses)
-    throw new ApiError(404, "No Addresses found with the provided ID.");
-
-  const totalAddresses = await Address.countDocuments({
-    owner: req?.user._id,
-  });
+  const totalAddresses = await getTotalAddressesCount(req?.user._id);
 
   const totalPages = Math.ceil(totalAddresses / limit);
 
@@ -228,22 +190,7 @@ const getUserAddresses = asyncHandler(async (req, res) => {
 });
 
 const addUserAddress = asyncHandler(async (req, res) => {
-  const { fullName, phone, addressLine1, city, state, pincode, country } =
-    req.body.address;
-
-  // Later validate data using joe or express validator
-
-  if (
-    ![fullName, phone, addressLine1, city, state, pincode, country].some(
-      (field) => field?.trim() === ""
-    )
-  )
-    throw new ApiError(400, "All fields are required");
-
-  const address = await Address.create({
-    ...req.body.address,
-    owner: req?.user._id,
-  });
+  const address = await CreateAddress(req?.user._id, req.body.address);
 
   return res
     .status(201)
@@ -253,51 +200,7 @@ const addUserAddress = asyncHandler(async (req, res) => {
 const updateUserAddress = asyncHandler(async (req, res) => {
   const { addressId } = req.params;
 
-  if (!addressId) throw new ApiError(400, "Address id is required");
-
-  if(!req.body.address)
-    throw new ApiError(400, "Address data is required")
-  
-  const {
-    fullName,
-    phone,
-    addressLine1,
-    addressLine2,
-    landmark,
-    city,
-    state,
-    pincode,
-    country,
-  } = req.body.address;
-
-  const updates = {
-    fullName,
-    phone,
-    addressLine1,
-    addressLine2,
-    landmark,
-    city,
-    state,
-    pincode,
-    country,
-  };
-
-  Object.keys(updates).forEach((key) => {
-    if (updates[key] === undefined || updates[key] === "") {
-      delete updates[key];
-    }
-  });
-
-  const updatedAddress = await Address.findByIdAndUpdate(
-    addressId,
-    {
-      $set: updates,
-    },
-    { returnDocument: "after", runValidators: false }
-  );
-
-  if (!updatedAddress)
-    throw new ApiError(404, "No Address found with the provided ID.");
+  const updatedAddress = await updateAddressById(addressId, req.body.address);
 
   return res
     .status(200)
@@ -307,12 +210,7 @@ const updateUserAddress = asyncHandler(async (req, res) => {
 const deleteUserAddress = asyncHandler(async (req, res) => {
   const { addressId } = req.params;
 
-  if (!addressId) throw new ApiError(400, "Address id is required");
-
-  const deletedAddress = await Address.findByIdAndDelete(addressId);
-
-  if (!deletedAddress)
-    throw new ApiError(404, "No Address found with the provided ID.");
+  const deletedAddress = await deleteAddressById(addressId);
 
   res.status(200).json(
     new ApiResponse(

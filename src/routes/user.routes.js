@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { ensureAuthenticated, restrictToRole } from "../middlewares/auth.middleware.js";
 import {
   currentUser,
   updateUserRole,
@@ -10,21 +10,30 @@ import {
   getUserAddresses,
   addUserAddress,
   updateUserAddress,
-  deleteUserAddress
+  deleteUserAddress,
 } from "../controllers/user.controller.js";
-import { checkAdmin } from "../middlewares/admin.middleware.js";
+import {
+  validateCreateAddress,
+  validateUpdateAddress,
+} from "../middlewares/validation.middleware.js";
 
 const router = Router();
 
-router.route("/current-user").get(verifyJWT, currentUser);
-router.route("/:id/role").post(checkAdmin, updateUserRole);
-router.route("/update-account").patch(verifyJWT, updateUserProfile);
-router.route("/update-phone").patch(verifyJWT, updateUserPhone);
-router.route("/update-phone/verify").patch(verifyJWT, updatePhoneVerify);
-router.route("/orders").get(verifyJWT, getUserOrders);
-router.route("/addresses").get(verifyJWT, getUserAddresses);
-router.route("/addresses").post(verifyJWT, addUserAddress);
-router.route("/addresses/:addressId").patch(verifyJWT, updateUserAddress);
-router.route("/addresses/:addressId").delete(verifyJWT, deleteUserAddress);
+const adminRestrictMiddleware = restrictToRole("ADMIN");
+
+router.route("/current-user").get(ensureAuthenticated, currentUser);
+router.route("/:id/role").post(adminRestrictMiddleware, updateUserRole);
+router.route("/update-account").patch(ensureAuthenticated, updateUserProfile);
+router.route("/update-phone").patch(ensureAuthenticated, updateUserPhone);
+router.route("/update-phone/verify").patch(ensureAuthenticated, updatePhoneVerify);
+router.route("/orders").get(ensureAuthenticated, getUserOrders);
+router.route("/addresses").get(ensureAuthenticated, getUserAddresses);
+router
+  .route("/addresses")
+  .post(ensureAuthenticated, validateCreateAddress, addUserAddress);
+router
+  .route("/addresses/:addressId")
+  .patch(ensureAuthenticated, validateUpdateAddress, updateUserAddress);
+router.route("/addresses/:addressId").delete(ensureAuthenticated, deleteUserAddress);
 
 export default router;

@@ -1,5 +1,5 @@
 import cloudinary from "../config/cloudinary.js";
-import fs from "fs";
+import fs from "fs/promises";
 
 const uploadOnCloudinary = async (localFilePath) => {
   try {
@@ -11,15 +11,17 @@ const uploadOnCloudinary = async (localFilePath) => {
     // file has been uploaded successfully
     console.log("file is uploaded on cloudinary ", response.url);
 
-    if (fs.existsSync(localFilePath)) {
-      fs.unlinkSync(localFilePath);
-    }
+    // Non-blocking delete
+    fs.unlink(localFilePath)
+      .catch((err) => console.error("Unlink error:", err));
+
     return response;
   } catch (error) {
     // also cleanup if upload fails
-    if (fs.existsSync(localFilePath)) {
-      fs.unlinkSync(localFilePath);
-    } // remove the locally saved temporary file as the upload operation got failed
+
+    // Non-blocking delete
+    fs.unlink(localFilePath)
+      .catch((err) => console.error("Unlink error:", err));
     return null;
   }
 };

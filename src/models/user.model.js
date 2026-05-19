@@ -35,10 +35,12 @@ const userSchema = new Schema(
     password: {
       type: String,
       required: [true, "Password is required"],
+      // select: false
     },
 
     refreshToken: {
       type: String,
+      // select: false
     },
   },
   {
@@ -61,8 +63,10 @@ userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
-      email: this.email,
+      fullName: this.fullName,
+      phone: this.phone,
       role: this.role,
+      createdAt: this.createdAt
     },
     process.env.ACCESS_TOKEN_SECRET,
     {

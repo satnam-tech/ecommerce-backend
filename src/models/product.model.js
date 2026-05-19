@@ -67,7 +67,8 @@ const productSchema = new Schema(
   }
 );
 
-productSchema.index({ name: 1, description: 1 }, { unique: true }); // Prevents Duplicate Products
+productSchema.index({ name: 1, brand: 1 }, { unique: true }); // Prevents Duplicate Products
+productSchema.index({ category: 1, price: 1 }); 
 
 productSchema.plugin(mongooseAggregatePaginate);
 

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { ensureAuthenticated } from "../middlewares/auth.middleware.js";
 
 import {
   addItemToCart,
@@ -9,8 +9,8 @@ import {
 
 const router = Router();
 
-router.route("/").get(verifyJWT, getUserCart);
-router.route("/items/:productId").post(verifyJWT, addItemToCart);
-router.route("/items/:productId").delete(verifyJWT, RemoveItemFromCart);
+router.route("/").get(ensureAuthenticated, getUserCart);
+router.route("/items/:productId").post(ensureAuthenticated, addItemToCart);
+router.route("/items/:productId").delete(ensureAuthenticated, RemoveItemFromCart);
 
 export default router;
